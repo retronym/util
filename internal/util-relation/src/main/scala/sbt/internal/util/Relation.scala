@@ -19,11 +19,18 @@ object Relation {
 
   /** Constructs a relation such that for every entry `_1 -> _2s` in `forward` and every `_2` in `_2s`, `(_1, _2)` is in the relation. */
   def reconstruct[A, B](forward: Map[A, Set[B]]): Relation[A, B] = {
-    val reversePairs = for ((a, bs) <- forward.view; b <- bs.view) yield (b, a)
-    val reverse = reversePairs.foldLeft(Map.empty[B, Set[A]]) {
-      case (m, (b, a)) => add(m, b, a :: Nil)
+    val forwardFiltered = forward filter { case (a, bs) => bs.nonEmpty }
+    val reverse = collection.mutable.HashMap[B, collection.immutable.SetBuilder[B]]()
+    for ((a, bs) <- forwardFiltered) {
+      for (b <- bs) {
+        val builder = reverse.getOrElseUpdate(b, collection.immutable.SetBuilder[B]())
+        builder += a
+      }
     }
-    make(forward filter { case (a, bs) => bs.nonEmpty }, reverse)
+    val reverseImmutable = collection.mutable.HashMap.newBuilder[B, collection.immutable.Set[B]]()
+    for ((k, v) <- reverse) reverseImmutable(k) = v
+
+    make(forwardFiltered, reverseImmutable.result())
   }
 
   def merge[A, B](rels: Traversable[Relation[A, B]]): Relation[A, B] =
